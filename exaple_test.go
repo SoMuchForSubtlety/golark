@@ -4,7 +4,7 @@ import "log"
 
 // This is the most basic way to make a request.
 // It will request the person with ID "pers_123" with all it's fields.
-func RequestExamples() {
+func ExampleRequest() {
 	type person struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
@@ -21,7 +21,7 @@ func RequestExamples() {
 
 // If you leave the ID empty all members of the collection will be queried.
 // You usually want to avoid this unless you limit the request to certain fields.
-func RequestExamples_AllPeople() {
+func ExampleRequest_all() {
 	type person struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`

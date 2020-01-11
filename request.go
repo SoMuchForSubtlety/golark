@@ -68,7 +68,7 @@ func (r *Request) WithContext(ctx context.Context) *Request {
 	return r
 }
 
-// OrderBy sorts the reponse by the given field
+// OrderBy sorts the response by the given field
 func (r *Request) OrderBy(f *Field) *Request {
 	r.additionalFields["order"] = f.Name
 	return r
