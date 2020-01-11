@@ -3,4 +3,4 @@
 
 # golark
 
-Golark is a go client for Skylarm CMS APIs.
+Golark is a go client for Skylark CMS APIs.
