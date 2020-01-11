@@ -1,4 +1,4 @@
-package client
+package golark
 
 import (
 	"fmt"

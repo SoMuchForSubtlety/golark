@@ -1,4 +1,4 @@
-package client
+package golark
 
 // Filter represents a Skylark request filter
 // It is used to constrain a request by a field's value

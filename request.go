@@ -1,4 +1,4 @@
-package client
+package golark
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type Request struct {
 	Endpoint         string
 	Collection       string
 	ID               string
-	Fields           map[string]*Field
+	fields           map[string]*Field
 	ctx              context.Context
 	additionalFields map[string]string
 }
@@ -23,20 +23,20 @@ type Request struct {
 // NewRequest returns a simple request with the given
 func NewRequest(endpoint, collection, id string) *Request {
 	return &Request{
-		Collection: collection, Endpoint: endpoint, Fields: make(map[string]*Field), additionalFields: make(map[string]string), ID: id, ctx: context.Background()}
+		Collection: collection, Endpoint: endpoint, fields: make(map[string]*Field), additionalFields: make(map[string]string), ID: id, ctx: context.Background()}
 }
 
 // AddField adds a field to the request.
 // If a request has fields specified it will only return those fields.
 func (r *Request) AddField(f *Field) *Request {
-	r.Fields[f.Name] = f
+	r.fields[f.name] = f
 	return r
 }
 
 // QueryParams calculates and returns the request's query parameters.
 func (r *Request) QueryParams() url.Values {
 	v := url.Values{}
-	for _, field := range r.Fields {
+	for _, field := range r.fields {
 		v = field.apply(v)
 	}
 	for key, value := range r.additionalFields {
@@ -45,32 +45,9 @@ func (r *Request) QueryParams() url.Values {
 	return v
 }
 
-// ToURL converts the request into a url.URL
-func (r *Request) ToURL() (*url.URL, error) {
-	temp := r.Endpoint + r.Collection + "/"
-	if r.ID != "" {
-		temp += r.ID + "/"
-	}
-	queryParams := r.QueryParams().Encode()
-	if queryParams != "" {
-		temp += "?" + queryParams
-	}
-	return url.Parse(temp)
-}
-
-// WithContext set's the context the request will be executed with.
-// Panics on nil context
-func (r *Request) WithContext(ctx context.Context) *Request {
-	if ctx == nil {
-		panic("nil context")
-	}
-	r.ctx = ctx
-	return r
-}
-
 // OrderBy sorts the response by the given field
 func (r *Request) OrderBy(f *Field) *Request {
-	r.additionalFields["order"] = f.Name
+	r.additionalFields["order"] = f.name
 	return r
 }
 
@@ -86,9 +63,19 @@ func (r *Request) WithFilter(fieldName string, filter *Filter) *Request {
 // Expand expands a field without explicitly listing it as a field to return.
 // This is usefult if you want to return all fields.
 func (r *Request) Expand(f *Field) *Request {
-	f.IsExpanded = true
-	f.IsIncluded = false
+	f.isExpanded = true
+	f.isIncluded = false
 	r.AddField(f)
+	return r
+}
+
+// WithContext set's the context the request will be executed with.
+// Panics on nil context
+func (r *Request) WithContext(ctx context.Context) *Request {
+	if ctx == nil {
+		panic("nil context")
+	}
+	r.ctx = ctx
 	return r
 }
 
@@ -117,4 +104,17 @@ func (r *Request) Execute(v interface{}) error {
 	}
 
 	return json.NewDecoder(res.Body).Decode(v)
+}
+
+// ToURL converts the request into a url.URL
+func (r *Request) ToURL() (*url.URL, error) {
+	temp := r.Endpoint + r.Collection + "/"
+	if r.ID != "" {
+		temp += r.ID + "/"
+	}
+	queryParams := r.QueryParams().Encode()
+	if queryParams != "" {
+		temp += "?" + queryParams
+	}
+	return url.Parse(temp)
 }

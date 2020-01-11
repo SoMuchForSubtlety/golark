@@ -1,4 +1,4 @@
-package client
+package golark
 
 import (
 	"fmt"
@@ -7,35 +7,35 @@ import (
 
 // Field represents a Skylark request field
 type Field struct {
-	Name       string
-	IsIncluded bool
-	IsExpanded bool
-	SubFields  map[string]*Field
+	name       string
+	isIncluded bool
+	isExpanded bool
+	subFields  map[string]*Field
 	filters    []*Filter
 }
 
 // NewField creates a new field
 func NewField(name string) *Field {
-	return &Field{Name: name, SubFields: make(map[string]*Field), IsIncluded: true}
+	return &Field{name: name, subFields: make(map[string]*Field), isIncluded: true}
 }
 
 func (f *Field) apply(v url.Values) url.Values {
-	if f.IsIncluded {
-		v = addValue(v, "fields", f.Name)
+	if f.isIncluded {
+		v = addValue(v, "fields", f.name)
 	}
-	if f.IsExpanded {
-		v = addValue(v, "fields_to_expand", f.Name)
+	if f.isExpanded {
+		v = addValue(v, "fields_to_expand", f.name)
 	}
 	for _, filter := range f.filters {
 		var key string
 		if filter.c == "" {
-			key = f.Name
+			key = f.name
 		} else {
-			key = fmt.Sprintf("%s__%s", f.Name, filter.c)
+			key = fmt.Sprintf("%s__%s", f.name, filter.c)
 		}
 		v.Add(key, filter.value)
 	}
-	for _, field := range f.SubFields {
+	for _, field := range f.subFields {
 		v = field.apply(v)
 	}
 	return v
@@ -44,15 +44,15 @@ func (f *Field) apply(v url.Values) url.Values {
 // WithSubField expands a field and adds the given field to the list of filds to be returned.
 // Only use this if the field is a reference to a different object!
 func (f *Field) WithSubField(subField *Field) *Field {
-	f.IsExpanded = true
-	subField.adjustName(f.Name)
-	f.SubFields[subField.Name] = subField
+	f.isExpanded = true
+	subField.adjustName(f.name)
+	f.subFields[subField.name] = subField
 	return f
 }
 
 func (f *Field) adjustName(parentName string) {
-	f.Name = fmt.Sprintf("%s__%s", parentName, f.Name)
-	for _, field := range f.SubFields {
+	f.name = fmt.Sprintf("%s__%s", parentName, f.name)
+	for _, field := range f.subFields {
 		field.adjustName(parentName)
 	}
 }
@@ -66,9 +66,9 @@ func (f *Field) WithFilter(filter *Filter) *Field {
 // Expand expands a field without explicitly listing it as a field to return.
 // This is usefult if you want to return all fields.
 func (f *Field) Expand(subField *Field) *Field {
-	subField.IsExpanded = true
-	subField.IsIncluded = false
-	subField.adjustName(f.Name)
-	f.SubFields[subField.Name] = subField
+	subField.isExpanded = true
+	subField.isIncluded = false
+	subField.adjustName(f.name)
+	f.subFields[subField.name] = subField
 	return f
 }
