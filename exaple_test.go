@@ -39,3 +39,46 @@ func ExampleRequest_all() {
 		log.Fatal(err)
 	}
 }
+
+// AddField lets you limit requests to certain fields, this can speed them up significanty.
+func ExampleRequest_AddField() {
+	NewRequest("https://test.com/api/", "person", "pers_123").
+		AddField(NewField("first_name")).
+		AddField(NewField("last_name"))
+}
+
+func ExampleRequest_Expand() {
+	NewRequest("https://test.com/api/", "person", "pers_123").
+		Expand(NewField("team_url"))
+}
+
+func ExampleRequest_OrderBy() {
+	NewRequest("https://test.com/api/", "person", "").
+		OrderBy(NewField("first_name"))
+}
+
+// Filters are helpful to search for onjects with knowing their ID
+func ExampleRequest_WithFilter() {
+	NewRequest("https://test.com/api/", "person", "").
+		WithFilter("first_name", NewFilter(Equals, "Bob"))
+}
+
+func ExampleRequest_WithFilter_greater_than() {
+	NewRequest("https://test.com/api/", "person", "").
+		WithFilter("salary", NewFilter(GreaterThan, "10000"))
+}
+
+// You can use comma separated lists to query multiple objects at once.
+func ExampleRequest_WithFilter_multiple() {
+	NewRequest("https://test.com/api/", "person", "").
+		WithFilter("first_name", NewFilter(Equals, "Bob,Lucas,Sue"))
+}
+
+func ExampleField_WithSubField() {
+	NewRequest("https://test.com/api/", "person", "").
+		AddField(NewField("first_name")).
+		AddField(NewField("team_url").
+			WithSubField(NewField("name")).
+			WithSubField(NewField("nation_url").
+				WithSubField(NewField("name"))))
+}
