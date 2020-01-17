@@ -40,7 +40,7 @@ func ExampleRequest_all() {
 	}
 }
 
-// AddField lets you limit requests to certain fields, this can speed them up significanty.
+// AddField lets you limit requests to certain fields, this can speed them up significantly.
 func ExampleRequest_AddField() {
 	NewRequest("https://test.com/api/", "person", "pers_123").
 		AddField(NewField("first_name")).
