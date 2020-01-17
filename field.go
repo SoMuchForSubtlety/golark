@@ -19,24 +19,28 @@ func NewField(name string) *Field {
 	return &Field{name: name, subFields: make(map[string]*Field), isIncluded: true}
 }
 
-func (f *Field) apply(v url.Values) url.Values {
+func (f *Field) apply(v url.Values, parentName string) url.Values {
+	name := f.name
+	if parentName != "" {
+		name = fmt.Sprintf("%s__%s", parentName, name)
+	}
 	if f.isIncluded {
-		v = addValue(v, "fields", f.name)
+		v = addValue(v, "fields", name)
 	}
 	if f.isExpanded {
-		v = addValue(v, "fields_to_expand", f.name)
+		v = addValue(v, "fields_to_expand", name)
 	}
 	for _, filter := range f.filters {
 		var key string
-		if filter.c == "" {
+		if filter.c == Equals {
 			key = f.name
 		} else {
-			key = fmt.Sprintf("%s__%s", f.name, filter.c)
+			key = fmt.Sprintf("%s__%s", name, filter.c)
 		}
 		v.Add(key, filter.value)
 	}
 	for _, field := range f.subFields {
-		v = field.apply(v)
+		v = field.apply(v, name)
 	}
 	return v
 }
@@ -45,16 +49,8 @@ func (f *Field) apply(v url.Values) url.Values {
 // Only use this if the field is a reference to a different object!
 func (f *Field) WithSubField(subField *Field) *Field {
 	f.isExpanded = true
-	subField.adjustName(f.name)
 	f.subFields[subField.name] = subField
 	return f
-}
-
-func (f *Field) adjustName(parentName string) {
-	f.name = fmt.Sprintf("%s__%s", parentName, f.name)
-	for _, field := range f.subFields {
-		field.adjustName(parentName)
-	}
 }
 
 // WithFilter applies a fielter to the field.
@@ -68,7 +64,6 @@ func (f *Field) WithFilter(filter *Filter) *Field {
 func (f *Field) Expand(subField *Field) *Field {
 	subField.isExpanded = true
 	subField.isIncluded = false
-	subField.adjustName(f.name)
 	f.subFields[subField.name] = subField
 	return f
 }

@@ -1,10 +1,15 @@
 package golark
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -31,9 +36,9 @@ func TestMultipleExpansion(t *testing.T) {
 				WithSubField(NewField("team_url").
 					WithSubField(NewField("name")).
 					WithSubField(NewField("colour"))))).
-		WithFilter("slug", NewFilter(Equals, "test"))
+		WithFilter("year", NewFilter(GreaterThan, "2017"))
 
-	testURL(request, "https://test.com/api/session-occurrence/?fields=channel_urls,channel_urls__self,channel_urls__name,channel_urls__driver_urls,channel_urls__driver_urls__driver_racingnumber,channel_urls__driver_urls__team_url,channel_urls__driver_urls__team_url__name,channel_urls__driver_urls__team_url__colour&fields_to_expand=channel_urls,channel_urls__driver_urls,channel_urls__driver_urls__team_url&slug=test", t)
+	testURL(request, "https://test.com/api/session-occurrence/?fields=channel_urls,channel_urls__self,channel_urls__name,channel_urls__driver_urls,channel_urls__driver_urls__driver_racingnumber,channel_urls__driver_urls__team_url,channel_urls__driver_urls__team_url__name,channel_urls__driver_urls__team_url__colour&fields_to_expand=channel_urls,channel_urls__driver_urls,channel_urls__driver_urls__team_url&year__gt=2017", t)
 }
 
 func TestRequestFilter(t *testing.T) {
@@ -84,6 +89,56 @@ func TestAllFields(t *testing.T) {
 	testURL(request, "https://test.com/api/driver/driv_123/", t)
 }
 
+func TestExecute(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"test": "test server"}`)
+	}))
+
+	err := NewRequest(server.URL+"/", "test", "123").Execute(&struct{}{})
+	if err != nil {
+		t.Error(err)
+	}
+	server.Close()
+}
+
+func TestExecuteConterxtTimout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Second)
+		fmt.Fprint(w, `{"test": "test server"}`)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
+	defer cancel()
+	err := NewRequest(server.URL+"/", "test", "123").WithContext(ctx).Execute(&struct{}{})
+	if !errors.Is(err, ctx.Err()) {
+		t.Error("expected timeout")
+	}
+}
+
+func TestServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"error": "test error"}`)
+	}))
+
+	err := NewRequest(server.URL+"/", "test", "123").Execute(&struct{}{})
+	if !errors.Is(err, errHTTP) {
+		t.Error(err)
+	}
+	server.Close()
+}
+
+func TestNilContextPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("expected a panic")
+		}
+	}()
+
+	NewRequest("https://test.com/api/", "race-season", "").WithContext(nil)
+}
+
 func testURL(r *Request, expectedURL string, t *testing.T) {
 	expected, err := url.Parse(expectedURL)
 	if err != nil {
@@ -96,11 +151,15 @@ func testURL(r *Request, expectedURL string, t *testing.T) {
 	}
 
 	if expected.Path != actual.Path {
-		t.Error(fmt.Sprintf("incorrect URL path\nexpected: %s\ngot:      %s", expected.Path, actual.Path))
+		t.Errorf("incorrect URL path\nexpected: %s\ngot:      %s", expected.Path, actual.Path)
 	}
 
 	if expected.Host != actual.Host {
-		t.Error(fmt.Sprintf("incorrect host\nexpected: %s\ngot:      %s", expected.Host, actual.Host))
+		t.Errorf("incorrect host\nexpected: %s\ngot:      %s", expected.Host, actual.Host)
+	}
+
+	if expected.Fragment != actual.Fragment {
+		t.Errorf("incorrect fragment\nexpected: %s\ngot:      %s", expected.Fragment, actual.Fragment)
 	}
 
 	compareValues(expected.Query(), actual.Query(), t)
