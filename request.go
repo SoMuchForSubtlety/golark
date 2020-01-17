@@ -10,6 +10,8 @@ import (
 	"net/url"
 )
 
+var errHTTP = errors.New("response has non 2XX status code")
+
 // Request represents a Skylark API request
 type Request struct {
 	Endpoint         string
@@ -37,7 +39,7 @@ func (r *Request) AddField(f *Field) *Request {
 func (r *Request) QueryParams() url.Values {
 	v := url.Values{}
 	for _, field := range r.fields {
-		v = field.apply(v)
+		v = field.apply(v, "")
 	}
 	for key, value := range r.additionalFields {
 		v.Add(key, value)
@@ -53,7 +55,7 @@ func (r *Request) OrderBy(f *Field) *Request {
 
 // WithFilter allows to filter by a field that is not in the requested response
 func (r *Request) WithFilter(fieldName string, filter *Filter) *Request {
-	if filter.c != "" {
+	if filter.c != Equals {
 		fieldName = fmt.Sprintf("%s__%s", fieldName, filter.c)
 	}
 	r.additionalFields[fieldName] = filter.value
@@ -98,9 +100,9 @@ func (r *Request) Execute(v interface{}) error {
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		message, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			return fmt.Errorf("Unable to read error message from server: %w", err)
+			return errHTTP
 		}
-		return errors.New(string(message))
+		return fmt.Errorf("%s : %w", string(message), errHTTP)
 	}
 
 	return json.NewDecoder(res.Body).Decode(v)
