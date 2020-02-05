@@ -1,6 +1,10 @@
-package golark
+package golark_test
 
-import "log"
+import (
+	"log"
+
+	"github.com/SoMuchForSubtlety/golark"
+)
 
 // This is the most basic way to make a request.
 // It will request the person with ID "pers_123" with all it's fields.
@@ -12,7 +16,7 @@ func ExampleRequest() {
 
 	var p person
 
-	r := NewRequest("https://test.com/api/", "person", "pers_123")
+	r := golark.NewRequest("https://test.com/api/", "person", "pers_123")
 	err := r.Execute(&p)
 	if err != nil {
 		log.Fatal(err)
@@ -33,7 +37,7 @@ func ExampleRequest_all() {
 
 	var people []response
 
-	r := NewRequest("https://test.com/api/", "person", "")
+	r := golark.NewRequest("https://test.com/api/", "person", "")
 	err := r.Execute(&people)
 	if err != nil {
 		log.Fatal(err)
@@ -42,43 +46,43 @@ func ExampleRequest_all() {
 
 // AddField lets you limit requests to certain fields, this can speed them up significantly.
 func ExampleRequest_AddField() {
-	NewRequest("https://test.com/api/", "person", "pers_123").
-		AddField(NewField("first_name")).
-		AddField(NewField("last_name"))
+	golark.NewRequest("https://test.com/api/", "person", "pers_123").
+		AddField(golark.NewField("first_name")).
+		AddField(golark.NewField("last_name"))
 }
 
 func ExampleRequest_Expand() {
-	NewRequest("https://test.com/api/", "person", "pers_123").
-		Expand(NewField("team_url"))
+	golark.NewRequest("https://test.com/api/", "person", "pers_123").
+		Expand(golark.NewField("team_url"))
 }
 
 func ExampleRequest_OrderBy() {
-	NewRequest("https://test.com/api/", "person", "").
-		OrderBy(NewField("first_name"))
+	golark.NewRequest("https://test.com/api/", "person", "").
+		OrderBy(golark.NewField("first_name"), golark.Ascending)
 }
 
-// Filters are helpful to search for onjects with knowing their ID
+// Filters are helpful to search for objects with knowing their ID
 func ExampleRequest_WithFilter() {
-	NewRequest("https://test.com/api/", "person", "").
-		WithFilter("first_name", NewFilter(Equals, "Bob"))
+	golark.NewRequest("https://test.com/api/", "person", "").
+		WithFilter("first_name", golark.NewFilter(golark.Equals, "Bob"))
 }
 
 func ExampleRequest_WithFilter_greater_than() {
-	NewRequest("https://test.com/api/", "person", "").
-		WithFilter("salary", NewFilter(GreaterThan, "10000"))
+	golark.NewRequest("https://test.com/api/", "person", "").
+		WithFilter("salary", golark.NewFilter(golark.GreaterThan, "10000"))
 }
 
 // You can use comma separated lists to query multiple objects at once.
 func ExampleRequest_WithFilter_multiple() {
-	NewRequest("https://test.com/api/", "person", "").
-		WithFilter("first_name", NewFilter(Equals, "Bob,Lucas,Sue"))
+	golark.NewRequest("https://test.com/api/", "person", "").
+		WithFilter("first_name", golark.NewFilter(golark.Equals, "Bob,Lucas,Sue"))
 }
 
 func ExampleField_WithSubField() {
-	NewRequest("https://test.com/api/", "person", "").
-		AddField(NewField("first_name")).
-		AddField(NewField("team_url").
-			WithSubField(NewField("name")).
-			WithSubField(NewField("nation_url").
-				WithSubField(NewField("name"))))
+	golark.NewRequest("https://test.com/api/", "person", "").
+		AddField(golark.NewField("first_name")).
+		AddField(golark.NewField("team_url").
+			WithSubField(golark.NewField("name")).
+			WithSubField(golark.NewField("nation_url").
+				WithSubField(golark.NewField("name"))))
 }

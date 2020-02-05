@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -17,7 +19,35 @@ const (
 	teamID   = "team_123"
 )
 
+func TestCustomClient(t *testing.T) {
+	client := &http.Client{Timeout: time.Millisecond * 10}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(time.Millisecond * 100)
+		fmt.Fprint(w, `{"test": "test server"}`)
+	}))
+
+	request := NewRequest(server.URL, "test", "123").WithClient(client)
+	url, err := request.ToURL()
+	if err != nil {
+		t.Error(err)
+	}
+	err = request.Execute(&struct{}{})
+	assert.EqualError(t, err, fmt.Sprintf("Get %s: net/http: request canceled (Client.Timeout exceeded while awaiting headers)", url))
+	server.Close()
+
+}
+
+func TestNoTrailingSlash(t *testing.T) {
+	request := NewRequest("https://test.com/api", "team", teamID)
+	testURL(request, "https://test.com/api/team/team_123/", t)
+
+	request = NewRequest("https://test.com/api/", "team", teamID)
+	testURL(request, "https://test.com/api/team/team_123/", t)
+}
+
 func TestExpandOnly(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "team", teamID).
 		Expand(NewField("nation_url").
 			Expand(NewField("eventoccurrence_urls"))).
@@ -27,6 +57,7 @@ func TestExpandOnly(t *testing.T) {
 }
 
 func TestMultipleExpansion(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "session-occurrence", "").
 		AddField(NewField("channel_urls").
 			WithSubField(NewField("self")).
@@ -42,6 +73,7 @@ func TestMultipleExpansion(t *testing.T) {
 }
 
 func TestRequestFilter(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "sets", "").
 		AddField(NewField("title")).
 		AddField(NewField("self")).
@@ -51,17 +83,22 @@ func TestRequestFilter(t *testing.T) {
 }
 
 func TestOrder(t *testing.T) {
+	t.Parallel()
 	year := NewField("year")
 	request := NewRequest("https://test.com/api/", "race-season", "").
 		AddField(year).
 		AddField(NewField("name")).
 		AddField(NewField("self")).
-		OrderBy(year)
-
+		OrderBy(year, Ascending)
 	testURL(request, "https://test.com/api/race-season/?fields=year,name,self&order=year", t)
+
+	request.OrderBy(year, Descending)
+	testURL(request, "https://test.com/api/race-season/?fields=year,name,self&order=-year", t)
+
 }
 
 func TestFieldFilter(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "race-season", "").
 		AddField(NewField("year").
 			WithFilter(NewFilter(GreaterThan, "2017"))).
@@ -72,6 +109,7 @@ func TestFieldFilter(t *testing.T) {
 }
 
 func TestExpandedField(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "driver", driverID).
 		AddField(NewField("first_name")).
 		AddField(NewField("last_name")).
@@ -84,6 +122,7 @@ func TestExpandedField(t *testing.T) {
 }
 
 func TestAllFields(t *testing.T) {
+	t.Parallel()
 	request := NewRequest("https://test.com/api/", "driver", driverID)
 
 	testURL(request, "https://test.com/api/driver/driv_123/", t)
@@ -94,14 +133,12 @@ func TestExecute(t *testing.T) {
 		fmt.Fprint(w, `{"test": "test server"}`)
 	}))
 
-	err := NewRequest(server.URL+"/", "test", "123").Execute(&struct{}{})
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, NewRequest(server.URL, "test", "123").Execute(&struct{}{}))
+
 	server.Close()
 }
 
-func TestExecuteConterxtTimout(t *testing.T) {
+func TestContext(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(time.Second)
 		fmt.Fprint(w, `{"test": "test server"}`)
@@ -110,7 +147,7 @@ func TestExecuteConterxtTimout(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*50)
 	defer cancel()
-	err := NewRequest(server.URL+"/", "test", "123").WithContext(ctx).Execute(&struct{}{})
+	err := NewRequest(server.URL, "test", "123").WithContext(ctx).Execute(&struct{}{})
 	if !errors.Is(err, ctx.Err()) {
 		t.Error("expected timeout")
 	}
@@ -122,21 +159,11 @@ func TestServerError(t *testing.T) {
 		fmt.Fprint(w, `{"error": "test error"}`)
 	}))
 
-	err := NewRequest(server.URL+"/", "test", "123").Execute(&struct{}{})
+	err := NewRequest(server.URL, "test", "123").Execute(&struct{}{})
 	if !errors.Is(err, errHTTP) {
 		t.Error(err)
 	}
 	server.Close()
-}
-
-func TestNilContextPanic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("expected a panic")
-		}
-	}()
-
-	NewRequest("https://test.com/api/", "race-season", "").WithContext(nil)
 }
 
 func testURL(r *Request, expectedURL string, t *testing.T) {

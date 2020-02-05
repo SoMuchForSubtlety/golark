@@ -10,22 +10,50 @@ import (
 	"net/url"
 )
 
-var errHTTP = errors.New("response has non 2XX status code")
+type order string
+
+var errHTTP = errors.New("response has non 200 status code")
+
+const (
+	// Ascending is used to sort by ascending
+	Ascending = order("")
+	// Descending is used to sort by descending
+	Descending = order("-")
+)
 
 // Request represents a Skylark API request
 type Request struct {
 	Endpoint         string
 	Collection       string
 	ID               string
+	Context          context.Context
+	Client           *http.Client
 	fields           map[string]*Field
-	ctx              context.Context
 	additionalFields map[string]string
 }
 
 // NewRequest returns a simple request with the given
 func NewRequest(endpoint, collection, id string) *Request {
+	if endpoint[len(endpoint)-1] != '/' {
+		endpoint += "/"
+	}
+
 	return &Request{
-		Collection: collection, Endpoint: endpoint, fields: make(map[string]*Field), additionalFields: make(map[string]string), ID: id, ctx: context.Background()}
+		Collection:       collection,
+		Endpoint:         endpoint,
+		ID:               id,
+		fields:           make(map[string]*Field),
+		additionalFields: make(map[string]string),
+		Context:          context.Background(),
+		Client:           http.DefaultClient,
+	}
+}
+
+// WithClient lets you set a client that will be used for HTTP requests
+// by default http.DefaultCLient is used
+func (r *Request) WithClient(client *http.Client) *Request {
+	r.Client = client
+	return r
 }
 
 // AddField adds a field to the request.
@@ -48,8 +76,8 @@ func (r *Request) QueryParams() url.Values {
 }
 
 // OrderBy sorts the response by the given field
-func (r *Request) OrderBy(f *Field) *Request {
-	r.additionalFields["order"] = f.name
+func (r *Request) OrderBy(f *Field, order order) *Request {
+	r.additionalFields["order"] = string(order) + f.name
 	return r
 }
 
@@ -72,12 +100,9 @@ func (r *Request) Expand(f *Field) *Request {
 }
 
 // WithContext set's the context the request will be executed with.
-// Panics on nil context
+// by default context.Background() is used
 func (r *Request) WithContext(ctx context.Context) *Request {
-	if ctx == nil {
-		panic("nil context")
-	}
-	r.ctx = ctx
+	r.Context = ctx
 	return r
 }
 
@@ -87,17 +112,17 @@ func (r *Request) Execute(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(r.ctx, "GET", url.String(), nil)
+	req, err := http.NewRequestWithContext(r.Context, http.MethodGet, url.String(), nil)
 	if err != nil {
 		return err
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := r.Client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
+	if res.StatusCode != http.StatusOK {
 		message, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			return errHTTP
