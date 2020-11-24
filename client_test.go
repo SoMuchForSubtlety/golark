@@ -33,7 +33,7 @@ func TestCustomClient(t *testing.T) {
 		t.Error(err)
 	}
 	err = request.Execute(&struct{}{})
-	assert.EqualError(t, err, fmt.Sprintf("Get %s: net/http: request canceled (Client.Timeout exceeded while awaiting headers)", url))
+	assert.EqualError(t, err, fmt.Sprintf("Get %q: context deadline exceeded (Client.Timeout exceeded while awaiting headers)", url))
 	server.Close()
 
 }
