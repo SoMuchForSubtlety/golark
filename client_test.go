@@ -10,14 +10,30 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 const (
 	driverID = "driv_123"
 	teamID   = "team_123"
 )
+
+func TestHeaders(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userAgent := r.Header.Get("User-Agent")
+		if userAgent != "test user agent" {
+			t.Error("unexpected User-Agent value: " + userAgent)
+		}
+		fmt.Fprint(w, "{}")
+	}))
+	defer server.Close()
+
+	err := NewRequest(server.URL, "test", "123").
+		Headers(http.Header{"User-Agent": []string{"test user agent"}}).
+		Execute(&struct{}{})
+	if err != nil {
+		t.Error(err)
+	}
+}
 
 func TestCustomClient(t *testing.T) {
 	client := &http.Client{Timeout: time.Millisecond * 10}
@@ -26,6 +42,7 @@ func TestCustomClient(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 		fmt.Fprint(w, `{"test": "test server"}`)
 	}))
+	defer server.Close()
 
 	request := NewRequest(server.URL, "test", "123").WithClient(client)
 	url, err := request.ToURL()
@@ -33,9 +50,9 @@ func TestCustomClient(t *testing.T) {
 		t.Error(err)
 	}
 	err = request.Execute(&struct{}{})
-	assert.EqualError(t, err, fmt.Sprintf("Get %q: context deadline exceeded (Client.Timeout exceeded while awaiting headers)", url))
-	server.Close()
-
+	if err.Error() != fmt.Sprintf("Get %q: context deadline exceeded (Client.Timeout exceeded while awaiting headers)", url) {
+		t.Error("unexpected error: " + err.Error())
+	}
 }
 
 func TestNoTrailingSlash(t *testing.T) {
@@ -94,7 +111,6 @@ func TestOrder(t *testing.T) {
 
 	request.OrderBy(year, Descending)
 	testURL(request, "https://test.com/api/race-season/?fields=year,name,self&order=-year", t)
-
 }
 
 func TestFieldFilter(t *testing.T) {
@@ -133,7 +149,10 @@ func TestExecute(t *testing.T) {
 		fmt.Fprint(w, `{"test": "test server"}`)
 	}))
 
-	assert.NoError(t, NewRequest(server.URL, "test", "123").Execute(&struct{}{}))
+	err := NewRequest(server.URL, "test", "123").Execute(&struct{}{})
+	if err != nil {
+		t.Error("unexpected error: " + err.Error())
+	}
 
 	server.Close()
 }

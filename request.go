@@ -30,6 +30,7 @@ type Request struct {
 	Client           *http.Client
 	fields           map[string]*Field
 	additionalFields map[string]string
+	headers          http.Header
 }
 
 // NewRequest returns a simple request with the given
@@ -47,6 +48,12 @@ func NewRequest(endpoint, collection, id string) *Request {
 		Context:          context.Background(),
 		Client:           http.DefaultClient,
 	}
+}
+
+// Headers lets you set http headers that will be used for HTTP requests
+func (r *Request) Headers(h http.Header) *Request {
+	r.headers = h
+	return r
 }
 
 // WithClient lets you set a client that will be used for HTTP requests
@@ -113,6 +120,9 @@ func (r *Request) Execute(v interface{}) error {
 		return err
 	}
 	req, err := http.NewRequestWithContext(r.Context, http.MethodGet, url.String(), nil)
+	if r.headers != nil {
+		req.Header = r.headers
+	}
 	if err != nil {
 		return err
 	}
